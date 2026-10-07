@@ -29,7 +29,7 @@
     }).join('');
 
     el.innerHTML = `
-      <video playsinline preload="metadata" poster="${v.poster}" src="${v.video.src}"></video>
+      <video playsinline preload="metadata" poster="${v.poster}"></video>
       <div class="pl-shade" aria-hidden="true"></div>
       <button class="pl-big" type="button" aria-label="再生">
         <span class="pl-big-disc">${icon('i-play')}</span>
@@ -81,6 +81,15 @@
 
     const $ = (s) => el.querySelector(s);
     const video = $('video');
+    // iPhone・iPad・Mac の Safari（iOS の他のブラウザも中身は同じ）には HLS を渡す。
+    // リリース添付の mp4 は種類不明（application/octet-stream）で返るため、Safari では再生できないことがある
+    const ua = navigator.userAgent;
+    const appleWebKit = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+      || (/Safari\//.test(ua) && !/(Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS|Android)\//.test(ua));
+    const canHls = video.canPlayType('application/vnd.apple.mpegurl');
+    const useHls = !!(v.video.hls && appleWebKit && canHls);
+    video.src = useHls ? v.video.hls : v.video.src;
+    log('video.source', { id: v.id, kind: useHls ? 'hls' : 'mp4', appleWebKit, canHls });
     const scrub = $('.pl-scrub');
     const segEls = [...el.querySelectorAll('.pl-seg')];
     const segFill = segEls.map((s) => s.firstElementChild);
@@ -225,9 +234,16 @@
     });
     video.addEventListener('error', () => {
       const e = video.error;
-      log('video.error', { id: v.id, src: video.currentSrc }, `ERROR code=${e?.code} ${e?.message || ''}`);
+      log('video.error', { id: v.id, src: video.currentSrc, hls: useHls }, `ERROR code=${e?.code} ${e?.message || ''}`);
       el.classList.add('is-error');
-      $('.pl-big-label').innerHTML = '動画を読み込めませんでした<small class="mono">logs/portal.log を確認</small>';
+      // ボタンの中にリンクは置けないので、案内はボタンと差し替える
+      const msg = document.createElement('div');
+      msg.className = 'pl-big';
+      msg.setAttribute('role', 'alert');
+      msg.innerHTML = `<span class="pl-big-disc" aria-hidden="true"><b style="font:900 34px/1 var(--f-display)">!</b></span>
+        <span class="pl-big-label">${ZA.log.PUBLIC ? 'この端末では動画を再生できませんでした' : '動画を読み込めませんでした'}
+        <small class="mono">code ${e?.code ?? '?'}${ZA.log.PUBLIC ? ' · <a href="check.html" style="text-decoration:underline">再生の確認ページへ</a>' : ' · logs/portal.log を確認'}</small></span>`;
+      $('.pl-big')?.replaceWith(msg);
     });
     let volTimer = 0;
     video.addEventListener('volumechange', () => {
