@@ -842,6 +842,16 @@
     $$('[data-theater]', view).forEach((b) => b.addEventListener('click', () => setTheater(!state.theater)));
     $('[data-back]', view)?.addEventListener('click', () => { state.backRestore = true; });
 
+    // スマホを横向きにしたら、画面いっぱいに広がったプレイヤーの位置へ移動する
+    const landscape = matchMedia('(orientation: landscape) and (max-height: 540px) and (pointer: coarse)');
+    const onOrientation = () => {
+      log('ui.orientation', { id: v.id, landscape: landscape.matches, w: innerWidth, h: innerHeight });
+      if (landscape.matches) setTimeout(() => $('.stage', view)?.scrollIntoView({ block: 'start', behavior: 'instant' }), 250);
+    };
+    landscape.addEventListener('change', onOrientation);
+    state.cleanup.push(() => landscape.removeEventListener('change', onOrientation));
+    if (landscape.matches) onOrientation();
+
     const nu = $('.next-up', view);
     if (nu) {
       const nv = nu.querySelector('video');

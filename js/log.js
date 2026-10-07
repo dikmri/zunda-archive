@@ -7,6 +7,9 @@
   const FILE_MODE = location.protocol === 'file:';
   // 公開用サイトでは見ている人の操作を記録しない（コンソールに出すだけ）
   const PUBLIC = document.querySelector('meta[name="za-mode"]')?.content === 'public';
+  // URL に ?debug=1 を付けたときは、記録を画面右下に出してコピーできるようにする（スマホでの確認用）
+  const DEBUG = /[?&]debug(=1)?(&|$)/.test(location.search);
+  const debugLines = [];
   const KEY = 'za:log';
   const MAX = 2000;
   const queue = [];
@@ -45,6 +48,7 @@
   function log(event, args = null, result = 'ok') {
     const line = `${stamp()} | web.${event} | ${fmt(args)} | ${fmt(result)}`.replace(/\n/g, '\\n');
     queue.push({ event, args, result, line });
+    if (DEBUG) { debugLines.push(line); renderDebug(); }
     if (!PUBLIC) console.debug('[log]', line);
     if (!timer) timer = setTimeout(flush, FILE_MODE ? 300 : 800);
   }
@@ -70,7 +74,37 @@
     return lines.length;
   }
 
+  let debugBtn = null, debugPanel = null;
+  function renderDebug() {
+    if (!DEBUG || !document.body) return;
+    if (!debugBtn) {
+      debugBtn = document.createElement('button');
+      debugBtn.type = 'button';
+      debugBtn.style.cssText = 'position:fixed;left:10px;bottom:10px;z-index:300;padding:8px 12px;border-radius:999px;border:0;background:#D43A86;color:#fff;font:700 12px/1 ui-monospace,monospace';
+      debugPanel = document.createElement('div');
+      debugPanel.style.cssText = 'position:fixed;left:10px;right:10px;bottom:52px;max-height:55vh;overflow:auto;z-index:300;background:rgba(11,15,12,.94);color:#ECEEE5;border-radius:12px;padding:10px;font:11px/1.5 ui-monospace,monospace;white-space:pre-wrap;word-break:break-all;display:none';
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.textContent = '記録をコピー';
+      copy.style.cssText = 'position:sticky;top:0;float:right;padding:6px 10px;border-radius:999px;border:0;background:#A5DA5B;color:#0E1510;font:700 12px/1 sans-serif';
+      copy.addEventListener('click', async () => {
+        const text = [...debugLines, `ua: ${navigator.userAgent}`, `screen: ${innerWidth}x${innerHeight} @${devicePixelRatio}`].join('\n');
+        try { await navigator.clipboard.writeText(text); } catch {
+          const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove();
+        }
+        copy.textContent = 'コピーしました';
+      });
+      debugPanel.appendChild(copy);
+      debugPanel.appendChild(document.createElement('pre'));
+      debugBtn.addEventListener('click', () => { debugPanel.style.display = debugPanel.style.display === 'none' ? 'block' : 'none'; });
+      document.body.append(debugPanel, debugBtn);
+    }
+    debugBtn.textContent = `記録 ${debugLines.length}`;
+    debugPanel.querySelector('pre').textContent = debugLines.slice(-200).join('\n');
+  }
+
   function installGlobalHandlers() {
+    if (DEBUG) document.addEventListener('DOMContentLoaded', renderDebug);
     addEventListener('error', (e) => {
       if (e.target && e.target !== window && (e.target.src || e.target.href)) {
         log('resource.error', { tag: e.target.tagName, src: e.target.currentSrc || e.target.src || e.target.href }, 'ERROR load failed');

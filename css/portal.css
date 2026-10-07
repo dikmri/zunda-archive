@@ -800,7 +800,7 @@ body[data-view="watch"] .accent { background: none; }
   isolation: isolate; color: #fff; user-select: none; -webkit-user-select: none; outline: none;
 }
 .player video { width: 100%; height: 100%; object-fit: contain; background: #000; }
-.player:fullscreen { border-radius: 0; }
+.player:fullscreen, .player:-webkit-full-screen { border-radius: 0; width: 100%; height: 100%; aspect-ratio: auto; }
 .pl-shade {
   position: absolute; inset: auto 0 0 0; height: 46%; pointer-events: none;
   background: linear-gradient(to top, rgba(5, 8, 6, .82), rgba(5, 8, 6, .35) 45%, transparent);
@@ -1005,6 +1005,19 @@ body[data-view="watch"] .accent { background: none; }
   .next-title { padding-right: 64px; }
   .endcard-next { grid-template-columns: 1fr; }
   .endcard-next img { width: 100%; }
+}
+
+/* スマホを横向きにしたとき（視聴ページ）: プレイヤーを画面に収まる最大の大きさにする */
+@media (orientation: landscape) and (max-height: 540px) and (pointer: coarse) {
+  body[data-view="watch"] .topbar { display: none; }
+  .watch { padding-top: 6px; }
+  .watch-layout { grid-template-columns: 1fr; }
+  .stage {
+    width: min(100%, calc(100svh * 16 / 9)); justify-self: center;
+    margin: 0 auto; border-radius: 0; box-shadow: none; scroll-margin-top: 0;
+  }
+  .player { border-radius: 0; }
+  .pl-chapter { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -286,20 +286,79 @@
         log('ui.player.pip', { id: v.id, on: !!document.pictureInPictureElement });
       } catch (err) { logError('ui.player.pip', err); }
     });
+    // 全画面: iPhone の Safari は要素の全画面（Fullscreen API）に対応しておらず、<video> を標準のプレーヤーで
+    // 全画面にする webkitEnterFullscreen だけが使える。それ以外（Android・iPad・PC）は自前のプレイヤーごと全画面にする
     const fsBtn = $('.pl-fs');
+    const isIPhone = /iPhone|iPod/.test(ua);
+    const requestFs = el.requestFullscreen || el.webkitRequestFullscreen;
+    const canVideoFs = typeof video.webkitEnterFullscreen === 'function';
+    const fsMethod = isIPhone && canVideoFs ? 'video' : requestFs ? 'element' : canVideoFs ? 'video' : 'none';
+    if (fsMethod === 'none') fsBtn.hidden = true;
+    const fsElement = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+    const coarse = matchMedia('(pointer: coarse)').matches;
     fsBtn.addEventListener('click', () => toggleFullscreen());
+
+    function enterVideoFullscreen() {
+      try {
+        video.webkitEnterFullscreen();
+        log('ui.player.fullscreen', { id: v.id, method: 'video', readyState: video.readyState });
+      } catch (err) {
+        logError('ui.player.fullscreen', err, { id: v.id, method: 'video', readyState: video.readyState });
+      }
+    }
+
+    function lockLandscape() {
+      // スマホは横向きで見る想定。固定できるのは Android の Chrome などで、全画面のあいだだけ
+      const o = screen.orientation;
+      if (!coarse || !o || typeof o.lock !== 'function') return;
+      o.lock('landscape').then(
+        () => log('ui.player.orientation', { id: v.id, lock: 'landscape' }),
+        (err) => log('ui.player.orientation', { id: v.id, lock: 'landscape' }, `skip ${err.name}`),
+      );
+    }
+
     function toggleFullscreen() {
-      const p = document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen?.();
-      p?.catch?.((err) => logError('ui.player.fullscreen', err));
+      if (fsElement()) {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        Promise.resolve(exit && exit.call(document)).catch((err) => logError('ui.player.fullscreen.exit', err));
+        return;
+      }
+      if (fsMethod === 'video') { enterVideoFullscreen(); return; }
+      if (fsMethod === 'element') {
+        let p;
+        try { p = requestFs.call(el, { navigationUI: 'hide' }); } catch (err) { p = Promise.reject(err); }
+        Promise.resolve(p).then(lockLandscape, (err) => {
+          logError('ui.player.fullscreen', err, { id: v.id, method: 'element' });
+          if (canVideoFs) enterVideoFullscreen();
+        });
+      }
     }
     const onFs = () => {
-      const on = document.fullscreenElement === el;
+      const on = fsElement() === el;
       setIcon(fsBtn, on ? 'i-unfull' : 'i-full');
-      log('ui.player.fullscreen', { id: v.id, on });
+      el.classList.toggle('is-fullscreen', on);
+      if (!on && screen.orientation && typeof screen.orientation.unlock === 'function') {
+        try { screen.orientation.unlock(); } catch { /* 固定していなければ何もしない */ }
+      }
+      log('ui.player.fullscreen', { id: v.id, method: 'element', on });
     };
     document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('webkitfullscreenchange', onFs);
+    // iPhone の標準プレーヤーの全画面。閉じたら自前の表示を今の再生位置に合わせる
+    video.addEventListener('webkitbeginfullscreen', () => log('ui.player.fullscreen', { id: v.id, method: 'video', on: true }));
+    video.addEventListener('webkitendfullscreen', () => {
+      render(video.currentTime);
+      if (!video.paused && !raf) raf = requestAnimationFrame(loop);
+      log('ui.player.fullscreen', { id: v.id, method: 'video', on: false, t: +video.currentTime.toFixed(2) });
+    });
 
-    video.addEventListener('click', () => { if (started) toggle(); else play(); });
+    // スマホでは、操作パネルが隠れているときのタップはパネルを出すだけにする（一時停止しない）
+    let tapWhileIdle = false;
+    video.addEventListener('click', () => {
+      if (!started) { play(); return; }
+      if (coarse && tapWhileIdle) return;
+      toggle();
+    });
     video.addEventListener('dblclick', toggleFullscreen);
 
     // シークバー: ドラッグとホバー時のサムネイル
@@ -353,8 +412,8 @@
       clearTimeout(idleTimer);
       idleTimer = setTimeout(() => { if (!video.paused && !dragging) el.classList.add('is-idle'); }, 2600);
     }
-    el.addEventListener('pointermove', armIdle);
-    el.addEventListener('pointerdown', armIdle);
+    el.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') armIdle(); });
+    el.addEventListener('pointerdown', () => { tapWhileIdle = el.classList.contains('is-idle'); armIdle(); });
     el.addEventListener('focusin', armIdle);
 
     function chapterJump(dir) {
@@ -401,6 +460,7 @@
       clearInterval(ambientTimer);
       ambient.remove();
       document.removeEventListener('fullscreenchange', onFs);
+      document.removeEventListener('webkitfullscreenchange', onFs);
       if (!video.paused) onProgress(video.currentTime, total);
       video.pause();
       video.removeAttribute('src');
