@@ -1,0 +1,33 @@
+{
+ "videos": {
+  "h3": {
+   "asset": "h3.mp4",
+   "version": "4a3f25b1a114b6e0bf",
+   "title": "MiniMax H3で動画を作るのだ！",
+   "at": "2026-10-07T19:24:14"
+  },
+  "iran_war": {
+   "asset": "iran_war.mp4",
+   "version": "a6a258b1a1158e47d4",
+   "title": "アメリカ・イスラエル×イラン戦争 なぜ始まり、なぜ終わらないのか",
+   "at": "2026-10-07T19:24:26"
+  },
+  "kiritan": {
+   "asset": "kiritan.mp4",
+   "version": "554623a1a115097e4d",
+   "title": "WAI-AnimaとMiniMax H3で、きりたんのアニメPVを作るのだ！",
+   "at": "2026-10-07T19:24:35"
+  },
+  "promo": {
+   "asset": "promo.mp4",
+   "version": "26331cb1a1153ec571",
+   "title": "頼むだけで解説動画ができるスキル zundamon-video",
+   "at": "2026-10-07T19:24:39"
+  }
+ },
+ "site": {
+  "repo": "dikmri/zunda-archive",
+  "url": "https://dikmri.github.io/zunda-archive/",
+  "tag": "videos"
+ }
+}
