@@ -232,9 +232,21 @@
       onProgress(total, total);
       onEnded();
     });
+    let fellBack = false;
     video.addEventListener('error', () => {
       const e = video.error;
-      log('video.error', { id: v.id, src: video.currentSrc, hls: useHls }, `ERROR code=${e?.code} ${e?.message || ''}`);
+      log('video.error', { id: v.id, src: video.currentSrc, hls: useHls && !fellBack }, `ERROR code=${e?.code} ${e?.message || ''}`);
+      // HLS で読めなかったら、今までの mp4 に切り替える（修正前より悪くならないように）
+      if (useHls && !fellBack) {
+        fellBack = true;
+        const at = video.currentTime || startAt || 0;
+        log('video.fallback', { id: v.id, from: 'hls', to: 'mp4', at: +at.toFixed(2) });
+        video.src = v.video.src;
+        video.load();
+        if (at > 0) video.addEventListener('loadedmetadata', () => { video.currentTime = Math.min(at, total - 0.5); }, { once: true });
+        if (started) play();
+        return;
+      }
       el.classList.add('is-error');
       // ボタンの中にリンクは置けないので、案内はボタンと差し替える
       const msg = document.createElement('div');
